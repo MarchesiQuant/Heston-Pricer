@@ -1,10 +1,6 @@
 # Heston-Pricer
 
-A **Heston pricing calculator** for valuing vanilla and exotic options on equity.
-
-## Overview
-
-This repository implements the Heston stochastic volatility model, a widely-used framework in quantitative finance for pricing equity derivatives. The model efficiently prices vanilla options (standard calls and puts) as well as more complex exotic options.
+A **Heston pricing calculator** for valuing vanilla and exotic options on equity. This repository implements the Heston stochastic volatility model, a widely-used framework in quantitative finance for pricing equity derivatives. The model efficiently prices vanilla options (standard calls and puts) as well as more complex exotic options.
 
 ## Main Python Classes
 
