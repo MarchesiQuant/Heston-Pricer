@@ -17,7 +17,7 @@ Represents the Heston stochastic volatility model. This class provides:
 - `heston_call(...)`, `carr_madan_call(...)`, `monte_carlo_call(...)`: Price European options using different techniques.
 
 ### `Pricer` (in `heston_pricer.py`)
-A wrapper class for pricing vanilla and exotic options using a supplied stochastic volatility model, typically an instance of `HestonModel`. This class provides:
+A wrapper class for pricing vanilla and exotic options using an instance of `HestonModel`. This class provides:
 - High-level methods to price European, digital, and barrier options.
 - Integration with model calibration and simulation routines.
 
