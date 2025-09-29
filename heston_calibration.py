@@ -105,6 +105,17 @@ def bs_implied_vol(S0, K, T, r, q, market_price):
 
 
 def get_vol_slice(df_vol, T):
+    """
+    Extract and interpolate market implied volatilities for a given maturity T.
+
+    Parameters:
+    df_vol: pandas DataFrame with volatility surface (strikes as columns, year fractions as index)
+    T: float, target maturity in years
+    
+    Returns:
+    moneyness: ndarray of strikes (as percentage of spot)
+    sigma_market: ndarray of interpolated market implied volatilities
+    """
 
     df = df_vol.copy()
 

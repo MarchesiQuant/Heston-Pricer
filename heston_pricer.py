@@ -49,7 +49,7 @@ class Pricer:
         return price[0]
 
 
-    def digital(self, T, S0, r, q, K, type='Call', npaths=10**5):
+    def digital(self, T, S0, r, q, K, type='Call', npaths=10**5, seed=None):
         """
         Price European digital options using Monte Carlo simulation under the Heston model.
 
@@ -69,19 +69,21 @@ class Pricer:
             Option type: 'Call' or 'Put'. Default is 'Call'.
         npaths : int, optional
             Number of Monte Carlo paths to simulate.
+        seed : int, optional
+            Random seed for reproducibility.
 
         Returns
         -------
         price : float
             Digital option price corresponding to strike K.
         """
-        S_t, _ = self.model.simulate(S0, T, r, q, npaths=npaths, nsteps=252)
+        S_t, _ = self.model.simulate(S0, T, r, q, npaths=npaths, nsteps=252, seed=seed)
         S_T = S_t[-1, :]
         price = np.exp(-r * T) * np.mean(S_T > K) if type == 'Call' else np.exp(-r * T) * np.mean(S_T < K)
         return price
 
 
-    def barrier(self, T, S0, r, q, K, B, type='UpAndOut', npaths=10**5, nsteps=252, seed=None):
+    def barrier(self, T, S0, r, q, K, B, barrier_type='UpAndOut', option_type='Call', npaths=10**5, nsteps=252, seed=None):
         """
         Price European barrier options using Monte Carlo simulation under the Heston model.
 
@@ -95,12 +97,14 @@ class Pricer:
             Risk-free rate.
         q : float
             Dividend yield.
-        K : float or ndarray
+        K : float
             Strike.
         B : float
             Barrier level.
-        type : str, optional
-            Option type: 'UpAndOut', 'DownAndOut', 'UpAndIn', 'DownAndIn'. Default is 'UpAndOut'.
+        barrier_type : str, optional
+            Barrier type: 'UpAndOut', 'DownAndOut', 'UpAndIn', 'DownAndIn'. Default is 'UpAndOut'.
+        option_type : str, optional
+            Option type: 'Call' or 'Put'. Default is 'Call'.
         npaths : int, optional
             Number of Monte Carlo paths to simulate.
         nsteps : int, optional
@@ -114,22 +118,29 @@ class Pricer:
             Barrier option price corresponding to strike K.
         """
         S_t, _ = self.model.simulate(S0, T, r, q, npaths=npaths, nsteps=nsteps, seed=seed)
-        knocked_out = np.zeros(npaths, dtype=bool)
-
-        if type in ['UpAndOut', 'UpAndIn']:
-            knocked_out = np.any(S_t >= B, axis=0)
-        elif type in ['DownAndOut', 'DownAndIn']:
-            knocked_out = np.any(S_t <= B, axis=0)
+        
+        # Check if barrier was hit during the life of the option
+        if barrier_type in ['UpAndOut', 'UpAndIn']:
+            barrier_hit = np.any(S_t >= B, axis=0)
+        elif barrier_type in ['DownAndOut', 'DownAndIn']:
+            barrier_hit = np.any(S_t <= B, axis=0)
         else:
-            raise ValueError(
-                "Invalid barrier option type. Choose from 'UpAndOut', 'DownAndOut', 'UpAndIn', 'DownAndIn'.")
+            raise ValueError("Invalid barrier type. Choose from 'UpAndOut', 'DownAndOut', 'UpAndIn', 'DownAndIn'.")
 
-        payoff = np.maximum(S_t[-1, :] - K, 0)
-
-        if type.endswith('Out'):
-            payoff[knocked_out] = 0  # knockout
+        # Calculate payoff based on option type
+        if option_type == 'Call':
+            payoff = np.maximum(S_t[-1, :] - K, 0)
+        elif option_type == 'Put':
+            payoff = np.maximum(K - S_t[-1, :], 0)
         else:
-            payoff[~knocked_out] = 0  # knock-in
+            raise ValueError("Invalid option type. Choose 'Call' or 'Put'.")
+
+        if barrier_type.endswith('Out'):
+            # Knockout: option dies if barrier is hit
+            payoff[barrier_hit] = 0  
+        else:
+            # Knock-in: option only pays if barrier was hit
+            payoff[~barrier_hit] = 0
 
         price = np.exp(-r * T) * np.mean(payoff)
         return price
