@@ -2,16 +2,17 @@ import numpy as np
 from scipy.optimize import minimize
 from scipy.stats import norm
 from scipy.interpolate import interp1d
-
+from scipy.optimize import brentq
 
 def calibrate(heston_model, df_surf, S0, r, T, q = 0, alpha=1.5, N_fft=4096, eta=0.25):
     """
     Calibrate Heston model parameters to market implied vols for a single maturity.
     Market vols are extracted internally from df_surf and converted to call prices via Black-Scholes.
     """
-    
-    # Extract strikes and vol and convert to prices 
-    K_market, sigma_market = get_vol_slice(df_surf, T)
+
+    # Extract moneyness and vol and convert to prices
+    moneyness, sigma_market = get_vol_slice(df_surf, T)
+    K_market = moneyness * S0 / 100
     C_market = bs_call_price(S0, K_market, T, r, q, sigma_market)
 
     # Initial guess and bounds: [kappa, xi, rho, v0, phi]
@@ -87,47 +88,39 @@ def bs_call_price(S0, K, T, r, q, sigma):
     return call_price
 
 
+def bs_implied_vol(S0, K, T, r, q, market_price):
+    """
+    Implied volatility via Black-Scholes using Brent's method.
+    """
+
+    def objective(sigma):
+        price = bs_call_price(S0, K, T, r, q, sigma)
+        return price - market_price
+    try:
+        implied_vol = brentq(objective, 1e-6, 5.0)
+    except ValueError:
+        implied_vol = np.nan  # If no solution found
+
+    return implied_vol
+
+
 def get_vol_slice(df_vol, T):
-    """
-    Extract strikes and implied volatilities for a given maturity T.
 
-    Parameters
-    ----------
-    df_vol : pd.DataFrame
-        DataFrame with index = maturities (years), columns = strikes + 'ATM'
-        The first column can be 'Date' or maturities.
-    T : float
-        Expiry for which we want the vol slice
-    S0 : float
-        Spot price to replace 'ATM'
-    
-    Returns
-    -------
-    K_market : np.ndarray
-        Array of strikes (with ATM replaced by S0)
-    sigma_market : np.ndarray
-        Array of interpolated volatilities for T
-    """
-    
     df = df_vol.copy()
-    
-    # Select only numeric columns (ignore first column like 'Date')
-    numeric_cols = [col for col in df.columns if col not in ['Date', 'ATM']]
-    df_numeric = df[numeric_cols]
 
-    # Get maturities and strikes 
-    maturities = df['Date'].values.astype(float)
-    K_market = df_numeric.columns.astype(float).to_numpy()
+    # Get maturities and moneynesses 
+    maturities = df.index.to_numpy().astype(float)
+    moneyness = df.columns.to_numpy().astype(float)
     sigma_market = []
 
     # Interpolate vols
-    for k in numeric_cols:
-        vols_k = df_numeric[k].values.astype(float)
+    for k in moneyness:
+        vols_k = df[k].values.astype(float)
         f = interp1d(maturities, vols_k, kind='linear', fill_value="extrapolate")
         sigma_market.append(f(T))
 
-    sigma_market = np.array(sigma_market)/100
+    sigma_market = np.array(sigma_market)
 
     # Sort by strike
-    sort_idx = np.argsort(K_market)
-    return K_market[sort_idx], sigma_market[sort_idx]
+    sort_idx = np.argsort(moneyness)
+    return moneyness[sort_idx], sigma_market[sort_idx]
